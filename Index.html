@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TBBF - RapidReach Views</title>
+    <style>
+        body { background-color: #0a0a0a; color: #ffffff; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: #111; padding: 30px; border-radius: 15px; border: 1px solid #f5c77a; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 90%; max-width: 400px; text-align: center; }
+        h1 { color: #f5c77a; margin-bottom: 10px; font-size: 24px; }
+        p { color: #888; font-size: 14px; margin-bottom: 25px; }
+        input { width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #f5c77a; border: none; border-radius: 8px; color: #000; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #dfb368; }
+        #status { margin-top: 20px; font-size: 18px; color: #f5c77a; font-weight: bold; }
+        .counter-box { font-size: 32px; margin-top: 10px; color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>TBBF VIEWS</h1>
+    <p>Tab-Booster System (10er Schritte)</p>
+    
+    <input type="text" id="videoUrl" placeholder="TikTok Link einfügen...">
+    <button onclick="startBoost()">START BOOST</button>
+    
+    <div id="status">Bereit...</div>
+    <div class="counter-box" id="viewCount">0</div>
+</div>
+
+<script>
+async function startBoost() {
+    const url = document.getElementById("videoUrl").value;
+    const status = document.getElementById("status");
+    const viewDisplay = document.getElementById("viewCount");
+
+    if(!url.includes("tiktok.com")) {
+        alert("Bitte TikTok Link einfügen!");
+        return;
+    }
+
+    status.innerText = "⏳ Bot läuft...";
+
+    // Befehl an Python senden
+    await fetch('/api/boost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_url: url })
+    });
+
+    // Alle 2 Sekunden den Zählerstand abfragen
+    const checkStats = setInterval(async () => {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        
+        viewDisplay.innerText = data.views;
+
+        if (data.views >= 1000) {
+            status.innerText = "✅ 1000 Views erreicht!";
+            clearInterval(checkStats);
+        }
+    }, 2000);
+}
+</script>
+
+</body>
+</html>
+
