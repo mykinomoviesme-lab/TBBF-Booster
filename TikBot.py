@@ -1,86 +1,106 @@
-import sys
-import time
-import webbrowser
+import os
 import threading
+import time
+import requests
 from flask import Flask, request, jsonify
-
-# Pfad-Fix für Pydroid 3 (Wichtig für Handy-Nutzer)
-sys.path.append('/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages')
-
-try:
-    from flask import Flask
-except ImportError:
-    print("Bitte installiere Flask im Terminal: pip install flask")
-    sys.exit()
 
 app = Flask(__name__)
 
-# Hier wird der Status gespeichert
-bot_data = {
-    "current_views": 0, 
+# Globaler Speicher für den Status des Bots
+bot_status = {
+    "views_done": 0,
+    "target": 0,
     "is_running": False,
-    "target": 1000
+    "stop_signal": False
 }
 
-# Die Logik, die die Tabs im Browser öffnet
-def tab_logic(url):
-    bot_data["is_running"] = True
-    bot_data["current_views"] = 0
-    interval = 5 # Alle 5 Sekunden ein neuer Tab/Refresh
-    
-    print(f"🚀 Tab-Booster gestartet für: {url}")
-    
-    for i in range(1, bot_data["target"] + 1):
-        # Öffnet den TikTok Link im Standard-Browser
-        webbrowser.open(url)
-        bot_data["current_views"] = i
-        
-        # Konsolen-Ausgabe alle 10 Views
-        if i % 10 == 0:
-            print(f"📈 Fortschritt: {i} Views erreicht.")
-        
-        time.sleep(interval)
-        
-    bot_data["is_running"] = False
-    print("✅ Ziel von 1000 Views erreicht.")
+def boost_logic(url, target, duration):
+    global bot_status
+    bot_status["is_running"] = True
+    bot_status["stop_signal"] = False
+    bot_status["views_done"] = 0
+    bot_status["target"] = target
 
-# Route 1: Lädt deine goldene index.html
+    # Video-ID aus dem Link extrahieren
+    try:
+        if "/video/" in url:
+            video_id = url.split("/video/")[1].split("?")[0]
+        else:
+            # Falls Kurz-URL, Link auflösen
+            r = requests.get(url, allow_redirects=True, timeout=10)
+            video_id = r.url.split("/video/")[1].split("?")[0]
+    except Exception as e:
+        print(f"Fehler bei Link-Analyse: {e}")
+        bot_status["is_running"] = False
+        return
+
+    print(f"🚀 Booster gestartet für ID: {video_id} | Ziel: {target}")
+
+    headers = {
+        "User-Agent": "com.zhiliaoapp.musically/2022405040",
+        "Host": "api16-core-c-useast1a.tiktokv.com"
+    }
+    api_url = f"https://api16-core-c-useast1a.tiktokv.com/aweme/v1/aweme/stats/?item_id={video_id}&play_delta=1"
+
+    for i in range(1, target + 1):
+        # Prüfen, ob der User "STOPP" gedrückt hat
+        if bot_status["stop_signal"]:
+            print("🛑 Bot wurde manuell gestoppt.")
+            break
+        
+        try:
+            # Der eigentliche View-Befehl
+            response = requests.post(api_url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                bot_status["views_done"] = i
+        except Exception as e:
+            print(f"Request Fehler: {e}")
+        
+        # Wartezeit zwischen den Views (Eingabefeld von der Webseite)
+        time.sleep(duration)
+
+    bot_status["is_running"] = False
+    print(f"✅ Vorgang beendet. Gesamtviews in dieser Sitzung: {bot_status['views_done']}")
+
+# ROUTEN FÜR DIE WEBSITE
+
 @app.route('/')
 def index():
+    # Lädt deine Index.html
     try:
-        return open('index.html', 'r', encoding='utf-8').read()
-    except FileNotFoundError:
-        return "Fehler: index.html wurde im Ordner nicht gefunden!"
+        return open('Index.html', 'r', encoding='utf-8').read()
+    except:
+        return "Fehler: Index.html nicht gefunden!"
 
-# Route 2: Wird aufgerufen, wenn du auf START BOOST klickst
-@app.route('/api/boost', methods=['POST'])
-def boost():
+@app.route('/api/start', methods=['POST'])
+def start():
     data = request.json
-    url = data.get('video_url')
-    
-    if url and not bot_data["is_running"]:
-        # Startet den Bot in einem extra Thread, damit die Website nicht stehen bleibt
-        threading.Thread(target=tab_logic, args=(url,)).start()
-        return jsonify({"status": "started"}), 200
-    
-    return jsonify({"status": "error", "message": "Bot läuft bereits oder Link fehlt"}), 400
+    url = data.get('url')
+    target = int(data.get('target', 1000))
+    duration = float(data.get('duration', 2))
 
-# Route 3: Liefert der Website die Zahlen in 10er Schritten (10, 20, 30...)
+    if not bot_status["is_running"]:
+        # Startet den Bot in einem eigenen Thread (Hintergrund)
+        threading.Thread(target=boost_logic, args=(url, target, duration)).start()
+        return jsonify({"status": "started"}), 200
+    return jsonify({"status": "already_running"}), 400
+
+@app.route('/api/stop', methods=['POST'])
+def stop():
+    bot_status["stop_signal"] = True
+    return jsonify({"status": "stopping"}), 200
+
 @app.route('/api/stats')
-def get_stats():
-    # Berechnet den Fortschritt (abgerundet auf die nächste 10)
-    stepped_views = (bot_data["current_views"] // 10) * 10
+def stats():
+    # Berechnet die Anzeige in 10er Schritten für das Design
+    display_views = (bot_status["views_done"] // 10) * 10
     return jsonify({
-        "views": stepped_views,
-        "is_running": bot_data["is_running"]
+        "views": display_views,
+        "is_running": bot_status["is_running"],
+        "real_count": bot_status["views_done"]
     })
 
 if __name__ == '__main__':
-    print("\n" + "="*30)
-    print("🔥 TBBF TIKBOT SYSTEM GESTARTET")
-    print("👉 Öffne im Browser: http://127.0.0.1:5000")
-    print("="*30 + "\n")
-    
-    # Startet den Webserver
-    app.run(host='0.0.0.0', port=5000)
+    # Port 8080 ist Standard für Replit
+    app.run(host='0.0.0.0', port=8080)
 

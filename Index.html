@@ -3,62 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TBBF - RapidReach Views</title>
+    <title>TBBF - RapidReach Views Pro</title>
     <style>
-        body { background-color: #0a0a0a; color: #ffffff; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: #111; padding: 30px; border-radius: 15px; border: 1px solid #f5c77a; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 90%; max-width: 400px; text-align: center; }
+        body { 
+            background-color: #0a0a0a; 
+            color: #ffffff; 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .card { 
+            background: #111; 
+            padding: 30px; 
+            border-radius: 15px; 
+            border: 1px solid #f5c77a; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            width: 90%; 
+            max-width: 400px; 
+            text-align: center; 
+        }
         h1 { color: #f5c77a; margin-bottom: 10px; font-size: 24px; }
-        p { color: #888; font-size: 14px; margin-bottom: 25px; }
-        input { width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #f5c77a; border: none; border-radius: 8px; color: #000; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { background: #dfb368; }
-        #status { margin-top: 20px; font-size: 18px; color: #f5c77a; font-weight: bold; }
-        .counter-box { font-size: 32px; margin-top: 10px; color: #fff; }
+        p { color: #888; font-size: 14px; margin-bottom: 20px; }
+        
+        label { display: block; text-align: left; color: #f5c77a; font-size: 12px; margin-bottom: 5px; margin-left: 2px; }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            margin-bottom: 15px; 
+            border-radius: 8px; 
+            border: 1px solid #333; 
+            background: #222; 
+            color: #fff; 
+            box-sizing: border-box; 
+            outline: none;
+        }
+        input:focus { border-color: #f5c77a; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
+        button { 
+            flex: 1;
+            padding: 12px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: 0.3s; 
+            border: none;
+        }
+        .start-btn { background: #f5c77a; color: #000; }
+        .start-btn:hover { background: #dfb368; }
+        .stop-btn { background: #ff4444; color: #fff; }
+        .stop-btn:hover { background: #cc3333; }
+
+        #viewCount { font-size: 48px; font-weight: bold; color: #fff; margin-top: 20px; }
+        #status { margin-top: 10px; font-size: 14px; color: #f5c77a; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h1>TBBF VIEWS</h1>
-    <p>Tab-Booster System (10er Schritte)</p>
+    <p>Premium Tab-Booster System</p>
     
-    <input type="text" id="videoUrl" placeholder="TikTok Link einfügen...">
-    <button onclick="startBoost()">START BOOST</button>
+    <label>TikTok Video Link</label>
+    <input type="text" id="videoUrl" placeholder="https://www.tiktok.com/@user/video/...">
     
-    <div id="status">Bereit...</div>
-    <div class="counter-box" id="viewCount">0</div>
+    <label>Anzahl der Views</label>
+    <input type="number" id="targetViews" placeholder="z.B. 1000" value="1000">
+    
+    <label>Wartezeit (Sekunden pro View)</label>
+    <input type="number" id="duration" placeholder="Empfohlen: 2" value="2">
+    
+    <div id="viewCount">0</div>
+    <div id="status">Bereit zum Starten</div>
+
+    <div class="btn-group">
+        <button class="start-btn" onclick="controlBot('start')">START</button>
+        <button class="stop-btn" onclick="controlBot('stop')">STOPP</button>
+    </div>
 </div>
 
 <script>
-async function startBoost() {
+let statsInterval;
+
+async function controlBot(action) {
     const url = document.getElementById("videoUrl").value;
+    const target = document.getElementById("targetViews").value;
+    const duration = document.getElementById("duration").value;
     const status = document.getElementById("status");
-    const viewDisplay = document.getElementById("viewCount");
 
-    if(!url.includes("tiktok.com")) {
-        alert("Bitte TikTok Link einfügen!");
-        return;
+    if (action === 'start') {
+        if(!url || !url.includes("tiktok.com")) {
+            alert("Bitte gib einen gültigen TikTok Link ein!");
+            return;
+        }
+
+        status.innerText = "⏳ Bot wird gestartet...";
+
+        try {
+            const response = await fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url, target: target, duration: duration })
+            });
+
+            if (response.ok) {
+                status.innerText = "🚀 Bot läuft aktiv...";
+                startStatsPolling();
+            }
+        } catch (e) {
+            status.innerText = "❌ Fehler beim Starten";
+        }
+    } else {
+        // Stopp-Befehl
+        await fetch('/api/stop', { method: 'POST' });
+        status.innerText = "🛑 Stopp-Signal gesendet...";
     }
+}
 
-    status.innerText = "⏳ Bot läuft...";
+function startStatsPolling() {
+    if (statsInterval) clearInterval(statsInterval);
+    
+    statsInterval = setInterval(async () => {
+        try {
+            const res = await fetch('/api/stats');
+            const data = await res.json();
+            
+            // Anzeige des Counters (Python liefert die 10er Schritte)
+            document.getElementById("viewCount").innerText = data.views;
 
-    // Befehl an Python senden
-    await fetch('/api/boost', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ video_url: url })
-    });
-
-    // Alle 2 Sekunden den Zählerstand abfragen
-    const checkStats = setInterval(async () => {
-        const res = await fetch('/api/stats');
-        const data = await res.json();
-        
-        viewDisplay.innerText = data.views;
-
-        if (data.views >= 1000) {
-            status.innerText = "✅ 1000 Views erreicht!";
-            clearInterval(checkStats);
+            if (!data.is_running && data.views >= document.getElementById("targetViews").value) {
+                document.getElementById("status").innerText = "✅ Ziel erreicht!";
+                clearInterval(statsInterval);
+            } else if (!data.is_running) {
+                document.getElementById("status").innerText = "⏹ Bot gestoppt.";
+                clearInterval(statsInterval);
+            }
+        } catch (e) {
+            console.error("Polling Fehler");
         }
     }, 2000);
 }
